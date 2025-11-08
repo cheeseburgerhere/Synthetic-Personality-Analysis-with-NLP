@@ -1,1 +1,2 @@
-Nemotron_Personas.parquet
+Nemotron_Personas*.parquet
+*.json
