@@ -1,2 +1,3 @@
 Nemotron_Personas*.parquet
 *.json
+.env
