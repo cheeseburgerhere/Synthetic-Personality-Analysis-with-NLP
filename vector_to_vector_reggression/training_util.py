@@ -89,7 +89,7 @@ def train_model(model, train_loader, val_loader, num_epochs=50, learning_rate=1e
         if val_loss < best_loss:
             best_loss = val_loss
             time = datetime.now().strftime("%Y%m%d_%H%M%S")
-            torch.save(model.state_dict(), f'training_data/best_hobby_projector_{time}.pth')
+            torch.save(model.state_dict(), f'training_results/best_hobby_projector_{time}.pth')
             print("  Example saved best model.")
 
     print("Training complete.")
