@@ -7,12 +7,12 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from similarity_utils import MatrixKNN
-
+from base_predictor import BasePredictor
 
 #This method looks great but after some tests we have found that it leans too much into general work experience 
 #because of this, users can feel unseen because it lacks nuance
 
-class PredictionMatrixKNN:
+class PredictionMatrixKNN(BasePredictor):
     def __init__(self, embeddings_path, csv_path):
         """
         Initialize the MatrixKNN predictor.
@@ -42,13 +42,14 @@ class PredictionMatrixKNN:
         self.knn = MatrixKNN(self.hobbies_embeddings)
         print("Initialization complete.")
 
-    def predict(self, vectors, k=5):
+    def predict(self, vectors, k=5, **kwargs):
         """
         Predict hobbies for given persona vectors.
         
         Args:
             vectors (np.array): Query vectors of shape (N, D) or (D,).
             k (int): Number of nearest neighbors to return.
+            **kwargs: Additional arguments (ignored in this implementation).
             
         Returns:
             list of list of str: Predicted hobbies for each query vector.

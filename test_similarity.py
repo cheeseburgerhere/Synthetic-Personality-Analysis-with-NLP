@@ -1,5 +1,5 @@
 import numpy as np
-from similarity_utils import VectorSimilarity, MatrixKNN, ApproximateKNN
+from prediction.similarity_utils import VectorSimilarity, MatrixKNN, ApproximateKNN
 
 def test_advanced_search():
     print("=== Testing Advanced Search ===")

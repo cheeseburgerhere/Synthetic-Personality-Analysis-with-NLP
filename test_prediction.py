@@ -5,7 +5,7 @@ import sys
 # Add current directory to path so we can import PredictionMatrixKNN
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from prediction_MatrixKNN import PredictionMatrixKNN
+from prediction.prediction_MatrixKNN import PredictionMatrixKNN
 
 def test_prediction():
     # Define paths relative to this script
