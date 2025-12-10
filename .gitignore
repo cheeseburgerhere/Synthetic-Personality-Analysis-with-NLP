@@ -2,3 +2,4 @@ Nemotron_Personas*.parquet
 *.json
 .env
 *__pycache__
+*.parquet
