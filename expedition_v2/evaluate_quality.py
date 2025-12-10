@@ -18,18 +18,18 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def load_data(output_dir):
     """Loads clustering results and embeddings."""
     clusters_path = os.path.join(output_dir, "hobby_clusters_v2.csv")
-    emb_05b_path = os.path.join(output_dir, "canonical_embeddings_qwen0.5b.npy")
-    emb_7b_path = os.path.join(output_dir, "canonical_embeddings_qwen7b.npy")
+    emb_06b_path = os.path.join(output_dir, "canonical_embeddings_qwen3_0.6b.npy")
+    emb_8b_path = os.path.join(output_dir, "canonical_embeddings_qwen3_8b.npy")
 
     if not os.path.exists(clusters_path):
         raise FileNotFoundError(f"Clusters file not found: {clusters_path}")
     
     df_clusters = pd.read_csv(clusters_path)
     
-    emb_05b = np.load(emb_05b_path) if os.path.exists(emb_05b_path) else None
-    emb_7b = np.load(emb_7b_path) if os.path.exists(emb_7b_path) else None
+    emb_06b = np.load(emb_06b_path) if os.path.exists(emb_06b_path) else None
+    emb_8b = np.load(emb_8b_path) if os.path.exists(emb_8b_path) else None
 
-    return df_clusters, emb_05b, emb_7b
+    return df_clusters, emb_06b, emb_8b
 
 def evaluate_reduction(df):
     """Calculates and prints reduction statistics."""
@@ -106,7 +106,7 @@ def main():
     output_dir = os.path.join(base_dir, 'output')
     
     try:
-        df, emb_05b, emb_7b = load_data(output_dir)
+        df, emb_06b, emb_8b = load_data(output_dir)
         
         # 1. Reduction Stats
         evaluate_reduction(df)
@@ -120,15 +120,15 @@ def main():
         print(f"Comparing Semantic Similarity for term: '{test_term}'")
         print("-" * 50)
         
-        find_nearest_neighbors(test_idx, emb_05b, df, "Qwen 0.5B")
-        find_nearest_neighbors(test_idx, emb_7b, df, "Qwen 7B (Large)")
+        find_nearest_neighbors(test_idx, emb_06b, df, "Qwen 3 0.6B")
+        find_nearest_neighbors(test_idx, emb_8b, df, "Qwen 3 8B")
         
         # 4. Visualization
-        if emb_7b is not None:
-            visualize_embeddings(emb_7b, df, os.path.join(output_dir, "embeddings_tsne_7b.png"), "Qwen 7B Embeddings TSNE")
+        if emb_8b is not None:
+            visualize_embeddings(emb_8b, df, os.path.join(output_dir, "embeddings_tsne_qwen3_8b.png"), "Qwen 3 8B Embeddings TSNE")
         
-        if emb_05b is not None:
-             visualize_embeddings(emb_05b, df, os.path.join(output_dir, "embeddings_tsne_0.5b.png"), "Qwen 0.5B Embeddings TSNE")
+        if emb_06b is not None:
+             visualize_embeddings(emb_06b, df, os.path.join(output_dir, "embeddings_tsne_qwen3_0.6b.png"), "Qwen 3 0.6B Embeddings TSNE")
 
     except Exception as e:
         logging.error(f"Evaluation failed: {e}")

@@ -20,95 +20,109 @@ logging.basicConfig(
 def main():
     parser = argparse.ArgumentParser(description="V2 Pipeline Runner")
     parser.add_argument("--limit", type=int, default=100, help="How many rows to process for testing")
-    parser.add_argument("--parquet_path", type=str, default="../initial_expedition/train-00000-of-00011.parquet", help="Path to input parquet")
+    parser.add_argument("--input_path", type=str, default="../all_hobbies.json", help="Path to input data (parquet or json)")
     args = parser.parse_args()
 
     # 1. Load Data
-    parquet_path = os.path.abspath(os.path.join(os.path.dirname(__file__), args.parquet_path))
-    if not os.path.exists(parquet_path):
-        logging.error(f"Parquet file not found at {parquet_path}")
+    input_path = os.path.abspath(os.path.join(os.path.dirname(__file__), args.input_path))
+    if not os.path.exists(input_path):
+        logging.error(f"Input file not found at {input_path}")
         return
 
-    logging.info(f"Loading data from {parquet_path} (limit={args.limit})...")
-    df = pd.read_parquet(parquet_path).iloc[:args.limit]
+    logging.info(f"Loading data from {input_path} (limit={args.limit})...")
     
-    # Extract hobbies (assuming column name 'hobbies_and_interests' or similar from previous exploration)
-    # The previous code in dataset_expedition_hobbies.ipynb used 'hobbies_and_interests_list' after eval
-    # Or 'hobbies_and_interests' column
+    unique_hobbies = []
     
-    # Let's inspect the columns in the df we just loaded to be sure, but we know from previous read
-    # 'hobbies_and_interests' is a string looking like a list
-    
-    import ast
-    all_hobbies = []
-    
-    if 'hobbies_and_interests_list' in df.columns:
-        # The list is stored as a string representation in 'hobbies_and_interests_list'
-        for item in df['hobbies_and_interests_list']:
-            try:
-                # Handle potential non-list strings if any
-                hobbies_list = ast.literal_eval(item)
-                if isinstance(hobbies_list, list):
-                    all_hobbies.extend(hobbies_list)
-            except Exception as e:
-                logging.warning(f"Could not parse hobby entry: {item}")
-    elif 'hobbies_and_interests' in df.columns:
-        # Fallback if list column missing (unexpected)
-        logging.warning("hobbies_and_interests_list not found, checking hobbies_and_interests but it looks like text...")
-                
-    unique_hobbies = list(set(all_hobbies))
-    logging.info(f"Found {len(unique_hobbies)} unique hobbies.")
+    if input_path.endswith('.json'):
+        import json
+        try:
+            with open(input_path, 'r') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    # We assume it is a list of strings as seen in inspection
+                    unique_hobbies = list(set(data))
+                    # Apply limit if needed (though for a list of strings, limit usually applies to *items* processing)
+                    # For consistency with "limit", we can slice the list.
+                    if args.limit > 0:
+                        unique_hobbies = unique_hobbies[:args.limit]
+                else:
+                    logging.error("JSON content is not a list.")
+                    return
+        except Exception as e:
+            logging.error(f"Failed to load JSON: {e}")
+            return
+            
+    elif input_path.endswith('.parquet'):
+        df = pd.read_parquet(input_path).iloc[:args.limit]
+        
+        # Extract hobbies logic (legacy support)
+        import ast
+        all_hobbies = []
+        if 'hobbies_and_interests_list' in df.columns:
+            for item in df['hobbies_and_interests_list']:
+                try:
+                    hobbies_list = ast.literal_eval(item)
+                    if isinstance(hobbies_list, list):
+                        all_hobbies.extend(hobbies_list)
+                except Exception as e:
+                    logging.warning(f"Could not parse hobby entry: {item}")
+        elif 'hobbies_and_interests' in df.columns:
+            logging.warning("hobbies_and_interests_list not found, using text column if needed (not implemented)")
+            
+        unique_hobbies = list(set(all_hobbies))
+    else:
+        logging.error("Unsupported file extension. Use .json or .parquet")
+        return
+
+    logging.info(f"Processing {len(unique_hobbies)} unique hobbies.")
     
     # 2. Clustering
     logging.info("Starting NCD Clustering...")
     ncd = NCDClustering()
-    # NCD is expensive, for >1000 items it will be slow. 
-    # For this research run, we might want to sample if unique_hobbies is huge.
-    # But for the task, we process what we have.
     
     clusters = ncd.cluster(unique_hobbies, distance_threshold=0.45)
     
-    # Create canonical list (key = canonical name, value = list of variations)
+    # Create canonical list
     canonical_map = {}
     canonical_hobbies = []
     
     for label, group in clusters.items():
-        # Pick shortest as canonical? Or most frequent (we lost frequency info)?
-        # Picking shortest is a decent heuristic for "Running" vs "Running in the park"
         canonical = min(group, key=len)
         canonical_hobbies.append(canonical)
         canonical_map[canonical] = group
         
-    logging.info(f"Reduced to {len(canonical_hobbies)} canonical hobbies from {len(unique_hobbies)} unique raw inputs.")
+    logging.info(f"Reduced to {len(canonical_hobbies)} canonical hobbies from {len(unique_hobbies)} unique input items.")
     
     # Save Cluster Data
     output_dir = os.path.join(os.path.dirname(__file__), 'output')
+    os.makedirs(output_dir, exist_ok=True)
     pd.DataFrame([
         {"canonical": k, "variations": str(v)} for k,v in canonical_map.items()
     ]).to_csv(os.path.join(output_dir, "hobby_clusters_v2.csv"), index=False)
     
     # 3. Embedding Generation
-    # Qwen 0.5B
-    logging.info("Generating embeddings with Qwen 0.5B...")
+    
+    # Qwen 3 Small (0.5B -> 0.6B)
+    # The user specified Qwen/Qwen3-Embedding-0.6B
+    logging.info("Generating embeddings with Qwen 0.6B...")
     try:
-        # Using a widely available Qwen model identifier
-        gen_small = EmbeddingGenerator("Qwen/Qwen2.5-0.5B") 
+        gen_small = EmbeddingGenerator("Qwen/Qwen3-Embedding-0.6B") 
         emb_small = gen_small.get_embedding(canonical_hobbies)
-        np.save(os.path.join(output_dir, "canonical_embeddings_qwen0.5b.npy"), emb_small)
-        logging.info("Saved Qwen 0.5B embeddings.")
+        np.save(os.path.join(output_dir, "canonical_embeddings_qwen3_0.6b.npy"), emb_small)
+        logging.info("Saved Qwen 0.6B embeddings.")
     except Exception as e:
-        logging.error(f"Skipping Qwen 0.5B generation due to error: {e}")
+        logging.error(f"Skipping Qwen 0.6B generation due to error: {e}")
 
-    # Qwen 7B (request said 8B, but sticking to 7B or 14B is standard for Qwen1.5/2.5 series. Qwen1 was 7B/14B. Specifying 7B is safer resource wise)
-    # If the user machine can't handle it, it will crash/error out, which is fine for research code (we log it).
-    logging.info("Generating embeddings with Qwen 7B...")
+    # Qwen 3 Large (7B -> 8B)
+    # The user specified Qwen/Qwen3-Embedding-8B
+    logging.info("Generating embeddings with Qwen 8B...")
     try:
-        gen_large = EmbeddingGenerator("Qwen/Qwen2.5-7B")
+        gen_large = EmbeddingGenerator("Qwen/Qwen3-Embedding-8B")
         emb_large = gen_large.get_embedding(canonical_hobbies)
-        np.save(os.path.join(output_dir, "canonical_embeddings_qwen7b.npy"), emb_large)
-        logging.info("Saved Qwen 7B embeddings.")
+        np.save(os.path.join(output_dir, "canonical_embeddings_qwen3_8b.npy"), emb_large)
+        logging.info("Saved Qwen 8B embeddings.")
     except Exception as e:
-        logging.error(f"Skipping Qwen 7B (Large) generation due to error: {e}")
+        logging.error(f"Skipping Qwen 8B generation due to error: {e}")
 
     logging.info("Pipeline complete.")
 
