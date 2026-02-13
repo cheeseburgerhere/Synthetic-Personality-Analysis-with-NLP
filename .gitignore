@@ -3,3 +3,4 @@ Nemotron_Personas*.parquet
 .env
 *__pycache__
 *.parquet
+vector_to_vector_reggression/training_results
